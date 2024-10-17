@@ -1,20 +1,131 @@
+#include <mutex>
+
 #include <jni.h>
-
-#include "AndroidOut.h"
-#include "Renderer.h"
-
+#include <android/log.h>
 #include <game-activity/GameActivity.cpp>
+#include <game-activity/native_app_glue/android_native_app_glue.c>
 #include <game-text-input/gametextinput.cpp>
+
+#include <vulkan/vulkan.h>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/base_sink.h>
+#include <mirinae/engine.hpp>
+#include <spdlog/sinks/android_sink.h>
+
+#include "filesys.hpp"
+
+
+namespace {
+
+    class LogcatSink : public spdlog::sinks::base_sink<std::mutex> {
+
+    public:
+        LogcatSink() = default;
+
+    protected:
+        void sink_it_(const spdlog::details::log_msg& msg) override {
+            spdlog::memory_buf_t formatted;
+            spdlog::sinks::base_sink<std::mutex>::formatter_->format(msg, formatted);
+            const auto text = fmt::to_string(formatted);
+            const auto log_level = this->log_level_cast(msg.level);
+            __android_log_print(log_level, "Mirinae", "%s\n", text.c_str());
+        }
+
+        void flush_() override {
+
+        }
+
+    private:
+        static android_LogPriority log_level_cast(spdlog::level::level_enum e) {
+            switch (e) {
+                case spdlog::level::level_enum::trace:
+                    return ANDROID_LOG_VERBOSE;
+                case spdlog::level::level_enum::debug:
+                    return ANDROID_LOG_DEBUG;
+                case spdlog::level::level_enum::info:
+                    return ANDROID_LOG_INFO;
+                case spdlog::level::level_enum::warn:
+                    return ANDROID_LOG_WARN;
+                case spdlog::level::level_enum::err:
+                    return ANDROID_LOG_ERROR;
+                case spdlog::level::level_enum::critical:
+                    return ANDROID_LOG_FATAL;
+                case spdlog::level::level_enum::off:
+                    return ANDROID_LOG_SILENT;
+                default:
+                    return ANDROID_LOG_UNKNOWN;
+            }
+        }
+
+    };
+
+
+    class CombinedEngine {
+
+    public:
+        CombinedEngine(android_app* const state) {
+            // Logger
+            {
+                auto android_logger = spdlog::android_logger_mt("android", "Mirinae");
+                spdlog::set_default_logger(android_logger);
+            }
+
+            create_info_.filesys_ = std::make_shared<dal::Filesystem>();
+            create_info_.filesys_->add_subsys(mirinapp::create_filesubsys_android_asset(
+                state->activity->assetManager, *create_info_.filesys_
+            ));
+
+            create_info_.instance_extensions_ = std::vector<std::string>{
+                    "VK_KHR_surface",
+                    "VK_KHR_android_surface",
+            };
+            create_info_.surface_creator_ = [state](void* instance) -> uint64_t {
+                VkAndroidSurfaceCreateInfoKHR create_info{
+                        .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
+                        .pNext = nullptr,
+                        .flags = 0,
+                        .window = state->window,
+                };
+
+                VkSurfaceKHR surface = VK_NULL_HANDLE;
+                const auto create_result = vkCreateAndroidSurfaceKHR(
+                        reinterpret_cast<VkInstance>(instance),
+                        &create_info,
+                        nullptr,
+                        &surface
+                );
+
+                return *reinterpret_cast<uint64_t*>(&surface);
+            };
+
+            engine_ = mirinae::create_engine(std::move(create_info_));
+        }
+
+        void do_frame() {
+            engine_->do_frame();
+        }
+
+        [[nodiscard]]
+        bool is_ongoing() const {
+            if (nullptr == engine_)
+                return false;
+            if (!engine_->is_ongoing())
+                return false;
+
+            return true;
+        }
+
+    private:
+        mirinae::EngineCreateInfo create_info_;
+        std::unique_ptr<mirinae::IEngine> engine_;
+
+    };
+
+}
+
 
 extern "C" {
 
-#include <game-activity/native_app_glue/android_native_app_glue.c>
-
-/*!
- * Handles commands sent to this Android application
- * @param pApp the app the commands are coming from
- * @param cmd the command to handle
- */
 void handle_cmd(android_app *pApp, int32_t cmd) {
     switch (cmd) {
         case APP_CMD_INIT_WINDOW:
@@ -22,7 +133,7 @@ void handle_cmd(android_app *pApp, int32_t cmd) {
             // "game" class if that suits your needs. Remember to change all instances of userData
             // if you change the class here as a reinterpret_cast is dangerous this in the
             // android_main function and the APP_CMD_TERM_WINDOW handler case.
-            pApp->userData = new Renderer(pApp);
+            pApp->userData = new ::CombinedEngine(pApp);
             break;
         case APP_CMD_TERM_WINDOW:
             // The window is being destroyed. Use this to clean up your userData to avoid leaking
@@ -30,10 +141,8 @@ void handle_cmd(android_app *pApp, int32_t cmd) {
             //
             // We have to check if userData is assigned just in case this comes in really quickly
             if (pApp->userData) {
-                //
-                auto *pRenderer = reinterpret_cast<Renderer *>(pApp->userData);
-                pApp->userData = nullptr;
-                delete pRenderer;
+                auto engine = reinterpret_cast<::CombinedEngine*>(pApp->userData);
+                delete engine;
             }
             break;
         default:
@@ -60,9 +169,6 @@ bool motion_event_filter_func(const GameActivityMotionEvent *motionEvent) {
  * This the main entry point for a native activity
  */
 void android_main(struct android_app *pApp) {
-    // Can be removed, useful to ensure your code is running
-    aout << "Welcome to android_main" << std::endl;
-
     // Register an event handler for Android events
     pApp->onAppCmd = handle_cmd;
 
@@ -71,48 +177,20 @@ void android_main(struct android_app *pApp) {
     // implemented in android_native_app_glue.c.
     android_app_set_motion_event_filter(pApp, motion_event_filter_func);
 
-    // This sets up a typical game/event loop. It will run until the app is destroyed.
     do {
-        // Process all pending events before running game logic.
-        bool done = false;
-        while (!done) {
-            // 0 is non-blocking.
-            int timeout = 0;
-            int events;
-            android_poll_source *pSource;
-            int result = ALooper_pollOnce(timeout, nullptr, &events,
-                                          reinterpret_cast<void**>(&pSource));
-            switch (result) {
-                case ALOOPER_POLL_TIMEOUT:
-                    [[clang::fallthrough]];
-                case ALOOPER_POLL_WAKE:
-                    // No events occurred before the timeout or explicit wake. Stop checking for events.
-                    done = true;
-                    break;
-                case ALOOPER_EVENT_ERROR:
-                    aout << "ALooper_pollOnce returned an error" << std::endl;
-                    break;
-                case ALOOPER_POLL_CALLBACK:
-                    break;
-                default:
-                    if (pSource) {
-                        pSource->process(pApp, pSource);
-                    }
-            }
-        }
+        int events;
+        android_poll_source *pSource;
+        const auto poll_res = ALooper_pollOnce(0, nullptr, &events, (void **) &pSource);
+        if (pSource)
+            pSource->process(pApp, pSource);
 
-        // Check if any user data is associated. This is assigned in handle_cmd
         if (pApp->userData) {
-            // We know that our user data is a Renderer, so reinterpret cast it. If you change your
-            // user data remember to change it here
-            auto *pRenderer = reinterpret_cast<Renderer *>(pApp->userData);
-
-            // Process game input
-            pRenderer->handleInput();
-
-            // Render a frame
-            pRenderer->render();
+            auto engine = reinterpret_cast<::CombinedEngine *>(pApp->userData);
+            if (!engine->is_ongoing())
+                break;
+            engine->do_frame();
         }
     } while (!pApp->destroyRequested);
 }
+
 }
