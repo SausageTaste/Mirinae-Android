@@ -1,0 +1,3 @@
+[submodule "extern/mirinae"]
+	path = extern/mirinae
+	url = https://github.com/SausageTaste/mirinae
