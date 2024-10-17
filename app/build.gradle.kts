@@ -43,6 +43,13 @@ android {
             version = "3.22.1"
         }
     }
+    sourceSets {
+        getByName("main") {
+            assets {
+                srcDirs("../extern/mirinae/asset")
+            }
+        }
+    }
 }
 
 dependencies {

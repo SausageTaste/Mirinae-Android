@@ -3,12 +3,12 @@
 
 cmake_minimum_required(VERSION 3.22.1)
 
-project("mirinapp")
+project("MirinaeAndroid")
 
 
 # Creates your game shared library. The name must be the same as the
 # one used for loading in your Kotlin/Java or AndroidManifest.txt files.
-add_library(mirinapp SHARED
+add_library(mirinaeandroid SHARED
         filesys.cpp
         main.cpp
 )
@@ -18,10 +18,10 @@ find_package(game-activity REQUIRED CONFIG)
 
 add_subdirectory(../../../../extern/mirinae ${PROJECT_BINARY_DIR}/libmirinae)
 
-target_compile_definitions(mirinapp PUBLIC VK_USE_PLATFORM_ANDROID_KHR)
+target_compile_definitions(mirinaeandroid PUBLIC VK_USE_PLATFORM_ANDROID_KHR)
 
 # Configure libraries CMake uses to link your target library.
-target_link_libraries(mirinapp
+target_link_libraries(mirinaeandroid
         # The game activity
         game-activity::game-activity
 
