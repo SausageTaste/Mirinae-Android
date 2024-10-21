@@ -17,9 +17,10 @@ else ()
     error("Not supported NDK architecture: ${ANDROID_ABI}")
 endif()
 
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}")
-list(APPEND CMAKE_FIND_ROOT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}")
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}/share/stb")
+set(mirinae_vcpkg_installed_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../../vcpkg_installed")
+list(APPEND CMAKE_PREFIX_PATH "${mirinae_vcpkg_installed_dir}/${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}")
+list(APPEND CMAKE_FIND_ROOT_PATH "${mirinae_vcpkg_installed_dir}/${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}")
+list(APPEND CMAKE_MODULE_PATH "${mirinae_vcpkg_installed_dir}/${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}/share/stb")
 
 get_cmake_property(_variableNames VARIABLES)
 list (SORT _variableNames)
