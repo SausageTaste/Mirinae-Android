@@ -6,6 +6,19 @@ cmake_minimum_required(VERSION 3.22.1)
 project("MirinaeAndroid")
 
 
+set(CMAKE_FIND_DEBUG_MODE 1)
+set(CMAKE_FIND_USE_CMAKE_PATH ON)
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_x64-android/x64-android")
+list(APPEND CMAKE_FIND_ROOT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_x64-android/x64-android")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_x64-android/x64-android/share/stb")
+
+get_cmake_property(_variableNames VARIABLES)
+list (SORT _variableNames)
+foreach (_variableName ${_variableNames})
+    message(STATUS "${_variableName}=${${_variableName}}")
+endforeach()
+
+
 # Creates your game shared library. The name must be the same as the
 # one used for loading in your Kotlin/Java or AndroidManifest.txt files.
 add_library(mirinaeandroid SHARED
