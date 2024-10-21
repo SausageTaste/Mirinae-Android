@@ -6,11 +6,20 @@ cmake_minimum_required(VERSION 3.22.1)
 project("MirinaeAndroid")
 
 
-set(CMAKE_FIND_DEBUG_MODE 1)
+set(CMAKE_FIND_DEBUG_MODE OFF)
 set(CMAKE_FIND_USE_CMAKE_PATH ON)
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_x64-android/x64-android")
-list(APPEND CMAKE_FIND_ROOT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_x64-android/x64-android")
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_x64-android/x64-android/share/stb")
+
+if (ANDROID_ABI STREQUAL "arm64-v8a")
+    set(mirinae_vcpkg_triplet "arm64-android")
+elseif (ANDROID_ABI STREQUAL "x86_64")
+    set(mirinae_vcpkg_triplet "x64-android")
+else ()
+    error("Not supported NDK architecture: ${ANDROID_ABI}")
+endif()
+
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}")
+list(APPEND CMAKE_FIND_ROOT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed_${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}/share/stb")
 
 get_cmake_property(_variableNames VARIABLES)
 list (SORT _variableNames)
