@@ -6,9 +6,6 @@ cmake_minimum_required(VERSION 3.22.1)
 project("MirinaeAndroid")
 
 
-set(CMAKE_FIND_DEBUG_MODE OFF)
-set(CMAKE_FIND_USE_CMAKE_PATH ON)
-
 if (ANDROID_ABI STREQUAL "arm64-v8a")
     set(mirinae_vcpkg_triplet "arm64-android")
 elseif (ANDROID_ABI STREQUAL "x86_64")
@@ -48,11 +45,6 @@ target_link_libraries(mirinaeandroid
         # The game activity
         game-activity::game-activity
 
-        # EGL and other dependent libraries required for drawing
-        # and interacting with Android system
-        EGL
-        GLESv3
-        jnigraphics
         android
         log
         mirinae::core
