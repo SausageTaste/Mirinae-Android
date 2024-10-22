@@ -6,6 +6,26 @@ cmake_minimum_required(VERSION 3.22.1)
 project("MirinaeAndroid")
 
 
+if (ANDROID_ABI STREQUAL "arm64-v8a")
+    set(mirinae_vcpkg_triplet "arm64-android")
+elseif (ANDROID_ABI STREQUAL "x86_64")
+    set(mirinae_vcpkg_triplet "x64-android")
+else ()
+    error("Not supported NDK architecture: ${ANDROID_ABI}")
+endif()
+
+set(mirinae_vcpkg_installed_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../../vcpkg_installed")
+list(APPEND CMAKE_PREFIX_PATH "${mirinae_vcpkg_installed_dir}/${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}")
+list(APPEND CMAKE_FIND_ROOT_PATH "${mirinae_vcpkg_installed_dir}/${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}")
+list(APPEND CMAKE_MODULE_PATH "${mirinae_vcpkg_installed_dir}/${mirinae_vcpkg_triplet}/${mirinae_vcpkg_triplet}/share/stb")
+
+get_cmake_property(_variableNames VARIABLES)
+list (SORT _variableNames)
+foreach (_variableName ${_variableNames})
+    message(STATUS "${_variableName}=${${_variableName}}")
+endforeach()
+
+
 # Creates your game shared library. The name must be the same as the
 # one used for loading in your Kotlin/Java or AndroidManifest.txt files.
 add_library(mirinaeandroid SHARED
@@ -25,11 +45,6 @@ target_link_libraries(mirinaeandroid
         # The game activity
         game-activity::game-activity
 
-        # EGL and other dependent libraries required for drawing
-        # and interacting with Android system
-        EGL
-        GLESv3
-        jnigraphics
         android
         log
         mirinae::core
