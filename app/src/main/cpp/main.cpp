@@ -68,6 +68,7 @@ namespace {
             {
                 auto android_logger = spdlog::android_logger_mt("android", "Mirinae");
                 spdlog::set_default_logger(android_logger);
+                spdlog::set_level(spdlog::level::debug);
             }
 
             create_info_.filesys_ = std::make_shared<dal::Filesystem>();
