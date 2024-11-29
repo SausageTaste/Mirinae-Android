@@ -7,7 +7,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.mirinaeandroid"
+        applicationId = "com.sausagetaste.mirinapp"
         minSdk = 30
         targetSdk = 34
         versionCode = 1
