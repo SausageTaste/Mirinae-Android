@@ -8,6 +8,7 @@
 
 #include <vulkan/vulkan.h>
 #include <spdlog/spdlog.h>
+#include <fstream>
 #include <spdlog/sinks/base_sink.h>
 #include <mirinae/engine.hpp>
 #include <spdlog/sinks/android_sink.h>
@@ -69,6 +70,44 @@ namespace {
                 auto android_logger = spdlog::android_logger_mt("android", "Mirinae");
                 spdlog::set_default_logger(android_logger);
                 spdlog::set_level(spdlog::level::debug);
+            }
+
+            {
+                auto dir = AAssetManager_openDir(state->activity->assetManager, "textures");
+                if (dir) {
+                    AAssetDir_rewind(dir);
+                    while (auto entry = AAssetDir_getNextFileName(dir)) {
+                        spdlog::info("Entry: {}", entry);
+                    }
+                }
+
+                char lang[3] = {};
+                AConfiguration_getLanguage(state->config, lang);
+                lang[2] = '\0';
+                spdlog::info("Config language: {}", lang);
+
+                AConfiguration_getCountry(state->config, lang);
+                lang[2] = '\0';
+                spdlog::info("Config country: {}", lang);
+
+                ACONFIGURATION_SCREEN_WIDTH_DP_ANY;
+                spdlog::info("Config DP: {} x {}", AConfiguration_getScreenWidthDp(state->config), AConfiguration_getScreenHeightDp(state->config));
+
+                const auto int_data_path = std::filesystem::u8path(state->activity->internalDataPath);
+                const auto int_file_path = int_data_path / "shit.txt";
+                std::ofstream internal_file{int_file_path};
+                internal_file << "Shit";
+                internal_file.close();
+                spdlog::info("File created: {}", int_file_path.u8string());
+
+                const auto ext_data_path = std::filesystem::u8path(state->activity->externalDataPath);
+                const auto ext_file_path = ext_data_path / "shit.txt";
+                std::ofstream ext_file{ext_file_path};
+                ext_file << "Dayum";
+                ext_file.close();
+                spdlog::info("File created: {}", ext_file_path.u8string());
+
+                spdlog::info("OBB path: {}", state->activity->obbPath);
             }
 
             create_info_.filesys_ = std::make_shared<dal::Filesystem>();
