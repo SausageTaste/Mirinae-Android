@@ -34,10 +34,10 @@ namespace {
 
             create_info_.filesys_ = std::make_shared<dal::Filesystem>();
             create_info_.filesys_->add_subsys(mirinapp::create_filesubsys_android_asset(
-                state->activity->assetManager, *create_info_.filesys_
+                state->activity->assetManager
             ));
             create_info_.filesys_->add_subsys(dal::create_filesubsys_std(
-                "", ::std::filesystem::u8path(state->activity->externalDataPath), *create_info_.filesys_
+                "", ::std::filesystem::u8path(state->activity->externalDataPath)
             ));
 
             create_info_.instance_extensions_ = std::vector<std::string>{
