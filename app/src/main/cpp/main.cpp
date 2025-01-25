@@ -6,12 +6,13 @@
 #include <game-activity/native_app_glue/android_native_app_glue.c>
 #include <game-text-input/gametextinput.cpp>
 
+#include <mirinae/lightweight/include_spdlog.hpp>
+
 #include <spdlog/sinks/android_sink.h>
 #include <spdlog/sinks/base_sink.h>
 #include <vulkan/vulkan.h>
 #include <fstream>
 #include <mirinae/engine.hpp>
-#include <mirinae/lightweight/include_spdlog.hpp>
 
 #include "filesys.hpp"
 
@@ -20,6 +21,7 @@
     if (nullptr == p_engine)                                \
         return;                                             \
     auto &engine = *p_engine;
+
 
 namespace {
 
@@ -40,6 +42,148 @@ namespace {
     }
 
 
+    class MotionInputManager {
+
+    public:
+        void notify(
+            const GameActivityMotionEvent &e, mirinae::IEngine &engine
+        ) {
+            const auto action = e.action & AMOTION_EVENT_ACTION_MASK;
+
+            switch (action) {
+                case AMOTION_EVENT_ACTION_POINTER_DOWN:
+                    this->activate_pointer(get_point_idx(e), e, engine);
+                    break;
+                case AMOTION_EVENT_ACTION_POINTER_UP:
+                    this->deactivate_pointer(get_point_idx(e), e, engine);
+                    break;
+                case AMOTION_EVENT_ACTION_DOWN:
+                    this->activate_pointer(0, e, engine);
+                    break;
+                case AMOTION_EVENT_ACTION_UP:
+                    this->deactivate_pointer(0, e, engine);
+                    break;
+                case AMOTION_EVENT_ACTION_MOVE:
+                    this->update_movements(e, engine);
+                    break;
+                default:
+                    SPDLOG_WARN(
+                        "Unhandled motion input action: {}",
+                        static_cast<int>(action)
+                    );
+                    break;
+            }
+        }
+
+    private:
+        struct Pointer {
+            bool notify_pos(float x, float y) {
+                bool changed = false;
+
+                if (last_x_ != x) {
+                    last_x_ = x;
+                    changed = true;
+                }
+                if (last_y_ != y) {
+                    last_y_ = y;
+                    changed = true;
+                }
+
+                return changed;
+            }
+
+            [[nodiscard]]
+            mirinae::touch::Event make_event() const {
+                mirinae::touch::Event out;
+                out.xpos_ = last_x_;
+                out.ypos_ = last_y_;
+                return out;
+            }
+
+            float last_x_ = 0;
+            float last_y_ = 0;
+            bool active_ = false;
+        };
+
+        static int get_point_idx(const GameActivityMotionEvent &e) {
+            auto point_idx = e.action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK;
+            point_idx = point_idx >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+            return point_idx;
+        }
+
+        static float get_axis_x(const GameActivityPointerAxes &axes) {
+            return GameActivityPointerAxes_getX(&axes);
+        }
+
+        static float get_axis_y(const GameActivityPointerAxes &axes) {
+            return GameActivityPointerAxes_getY(&axes);
+        }
+
+        Pointer &pointer_at(size_t index) {
+            if (index >= pointers_.size())
+                pointers_.resize(index + 1);
+            return pointers_[index];
+        }
+
+        void activate_pointer(
+            size_t i, const GameActivityMotionEvent &e, mirinae::IEngine &engine
+        ) {
+            auto &axes = e.pointers[i];
+            auto &p = this->pointer_at(i);
+            p.last_x_ = get_axis_x(axes);
+            p.last_y_ = get_axis_y(axes);
+
+            if (!p.active_) {
+                p.active_ = true;
+
+                auto event = p.make_event();
+                event.index_ = i;
+                event.action_ = mirinae::touch::ActionType::down;
+                engine.on_touch_event(event);
+            }
+        }
+
+        void deactivate_pointer(
+            size_t i, const GameActivityMotionEvent &e, mirinae::IEngine &engine
+        ) {
+            auto &axes = e.pointers[i];
+            auto &p = this->pointer_at(i);
+            p.last_x_ = get_axis_x(axes);
+            p.last_y_ = get_axis_y(axes);
+
+            if (p.active_) {
+                p.active_ = false;
+
+                auto event = p.make_event();
+                event.action_ = mirinae::touch::ActionType::up;
+                event.index_ = i;
+                engine.on_touch_event(event);
+            }
+        }
+
+        void update_movements(
+            const GameActivityMotionEvent &e, mirinae::IEngine &engine
+        ) {
+            const auto p_count = std::min<size_t>(
+                e.pointerCount, pointers_.size()
+            );
+
+            for (size_t i = 0; i < p_count; ++i) {
+                auto &p = pointers_[i];
+                auto &axes = e.pointers[i];
+                if (p.notify_pos(get_axis_x(axes), get_axis_y(axes))) {
+                    auto event = p.make_event();
+                    event.action_ = mirinae::touch::ActionType::move;
+                    event.index_ = i;
+                    engine.on_touch_event(event);
+                }
+            }
+        }
+
+        std::vector<Pointer> pointers_;
+    };
+
+
     class CombinedEngine {
 
     public:
@@ -53,6 +197,8 @@ namespace {
                 spdlog::set_level(spdlog::level::debug);
             }
 
+            create_info_.init_width_ = 100;
+            create_info_.init_height_ = 100;
             create_info_.filesys_ = std::make_shared<dal::Filesystem>();
             create_info_.filesys_->add_subsys(
                 mirinapp::create_filesubsys_android_asset(
@@ -105,9 +251,22 @@ namespace {
             engine_->notify_window_resize(w, h);
         }
 
+        void handle_inputs(android_app &app) {
+            auto ib = android_app_swap_input_buffers(&app);
+            if (nullptr == ib)
+                return;
+
+            for (uint64_t i = 0; i < ib->motionEventsCount; ++i) {
+                motion_inputs_.notify(ib->motionEvents[i], *engine_);
+            }
+
+            android_app_clear_motion_events(ib);
+        }
+
     private:
         mirinae::EngineCreateInfo create_info_;
         std::unique_ptr<mirinae::IEngine> engine_;
+        ::MotionInputManager motion_inputs_;
     };
 
 
@@ -150,23 +309,6 @@ namespace {
         }
     }
 
-    /*!
-     * Enable the motion events you want to handle; not handled events are
-     * passed back to OS for further processing. For this example case,
-     * only pointer and joystick devices are enabled.
-     *
-     * @param motionEvent the newly arrived GameActivityMotionEvent.
-     * @return true if the event is from a pointer or joystick device,
-     *         false for all other input devices.
-     */
-    bool motion_event_filter_func(const GameActivityMotionEvent *motionEvent) {
-        auto sourceClass = motionEvent->source & AINPUT_SOURCE_CLASS_MASK;
-        return (
-            sourceClass == AINPUT_SOURCE_CLASS_POINTER ||
-            sourceClass == AINPUT_SOURCE_CLASS_JOYSTICK
-        );
-    }
-
 }  // namespace
 
 
@@ -178,26 +320,37 @@ extern "C" {
 void android_main(struct android_app *pApp) {
     // Register an event handler for Android events
     pApp->onAppCmd = handle_cmd;
+    android_app_set_motion_event_filter(pApp, nullptr);
 
-    // Set input event filters (set it to NULL if the app wants to process all
-    // inputs). Note that for key inputs, this example uses the default
-    // default_key_filter() implemented in android_native_app_glue.c.
-    android_app_set_motion_event_filter(pApp, motion_event_filter_func);
+    auto &app = *pApp;
 
-    do {
-        int events;
-        android_poll_source *pSource;
-        const auto poll_res = ALooper_pollOnce(
-            0, nullptr, &events, (void **)&pSource
-        );
-        if (pSource)
-            pSource->process(pApp, pSource);
+    while (true) {
+        {
+            int events;
+            android_poll_source *pSource;
+            const auto poll_res = ALooper_pollOnce(
+                0, nullptr, &events, (void **)&pSource
+            );
+            if (pSource)
+                pSource->process(pApp, pSource);
+        }
+
+        if (app.destroyRequested) {
+            delete get_userdata_as<::CombinedEngine>(app);
+            app.userData = nullptr;
+            return;
+        }
 
         if (auto engine = get_userdata_as<CombinedEngine>(pApp)) {
-            if (!engine->is_ongoing())
-                break;
+            if (!engine->is_ongoing()) {
+                delete get_userdata_as<::CombinedEngine>(app);
+                app.userData = nullptr;
+                return;
+            }
+
+            engine->handle_inputs(app);
             engine->do_frame();
         }
-    } while (!pApp->destroyRequested);
+    }
 }
 }
