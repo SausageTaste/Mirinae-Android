@@ -41,6 +41,7 @@ set(MIRINAE_USE_DALBARAGI_SUBMODULE ON CACHE BOOL "")
 add_subdirectory(../../../../extern/mirinae ${PROJECT_BINARY_DIR}/libmirinae)
 
 target_compile_definitions(mirinaeandroid PUBLIC VK_USE_PLATFORM_ANDROID_KHR)
+target_compile_features(mirinaeandroid PUBLIC cxx_std_17)
 
 # Configure libraries CMake uses to link your target library.
 target_link_libraries(mirinaeandroid

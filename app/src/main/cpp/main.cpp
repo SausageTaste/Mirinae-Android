@@ -8,23 +8,42 @@
 
 #include <spdlog/sinks/android_sink.h>
 #include <spdlog/sinks/base_sink.h>
-#include <spdlog/spdlog.h>
 #include <vulkan/vulkan.h>
 #include <fstream>
 #include <mirinae/engine.hpp>
+#include <mirinae/lightweight/include_spdlog.hpp>
 
 #include "filesys.hpp"
 
+#define GET_ENGINE(app)                                     \
+    auto p_engine = get_userdata_as<::CombinedEngine>(app); \
+    if (nullptr == p_engine)                                \
+        return;                                             \
+    auto &engine = *p_engine;
 
 namespace {
 
     std::shared_ptr<spdlog::logger> g_android_logger;
 
 
+    template <typename T>
+    T *get_userdata_as(android_app *app) {
+        if (nullptr == app)
+            return nullptr;
+        else
+            return reinterpret_cast<T *>(app->userData);
+    }
+
+    template <typename T>
+    T *get_userdata_as(android_app &app) {
+        return ::get_userdata_as<T>(&app);
+    }
+
+
     class CombinedEngine {
 
     public:
-        explicit CombinedEngine(android_app *const state) {
+        explicit CombinedEngine(android_app &app) {
             // Logger
             if (!g_android_logger) {
                 g_android_logger = spdlog::android_logger_mt(
@@ -37,24 +56,23 @@ namespace {
             create_info_.filesys_ = std::make_shared<dal::Filesystem>();
             create_info_.filesys_->add_subsys(
                 mirinapp::create_filesubsys_android_asset(
-                    state->activity->assetManager
+                    app.activity->assetManager
                 )
             );
             create_info_.filesys_->add_subsys(dal::create_filesubsys_std(
-                "", ::std::filesystem::u8path(state->activity->externalDataPath)
+                "", ::std::filesystem::u8path(app.activity->externalDataPath)
             ));
 
             create_info_.instance_extensions_ = std::vector<std::string>{
                 "VK_KHR_surface",
                 "VK_KHR_android_surface",
             };
-            create_info_.surface_creator_ = [state](void *instance
-                                            ) -> uint64_t {
+            create_info_.surface_creator_ = [&app](void *instance) -> uint64_t {
                 VkAndroidSurfaceCreateInfoKHR create_info{
                     .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
                     .pNext = nullptr,
                     .flags = 0,
-                    .window = state->window,
+                    .window = app.window,
                 };
 
                 VkSurfaceKHR surface = VK_NULL_HANDLE;
@@ -92,71 +110,67 @@ namespace {
         std::unique_ptr<mirinae::IEngine> engine_;
     };
 
+
+    void handle_cmd_init_window(android_app &app) {
+        SPDLOG_DEBUG("APP_CMD_INIT_WINDOW");
+        delete get_userdata_as<::CombinedEngine>(app);
+        app.userData = new ::CombinedEngine(app);
+    }
+
+    void handle_cmd_term_window(android_app &app) {
+        SPDLOG_DEBUG("APP_CMD_TERM_WINDOW");
+        delete get_userdata_as<::CombinedEngine>(app);
+        app.userData = nullptr;
+    }
+
+    void handle_cmd_rect_changed(android_app &app) {
+        SPDLOG_DEBUG("APP_CMD_CONTENT_RECT_CHANGED");
+        GET_ENGINE(app);
+
+        const auto width = app.contentRect.right - app.contentRect.left;
+        const auto height = app.contentRect.bottom - app.contentRect.top;
+
+        engine.on_resize(width, height);
+    }
+
+    void handle_cmd(android_app *app, int32_t cmd) {
+        if (nullptr == app)
+            return;
+
+        switch (cmd) {
+            case APP_CMD_INIT_WINDOW:
+                return ::handle_cmd_init_window(*app);
+            case APP_CMD_TERM_WINDOW:
+                ::handle_cmd_term_window(*app);
+            case APP_CMD_CONTENT_RECT_CHANGED:
+                ::handle_cmd_rect_changed(*app);
+            default:
+                SPDLOG_WARN("Unhandled APP cmd: {}", static_cast<int>(cmd));
+                break;
+        }
+    }
+
+    /*!
+     * Enable the motion events you want to handle; not handled events are
+     * passed back to OS for further processing. For this example case,
+     * only pointer and joystick devices are enabled.
+     *
+     * @param motionEvent the newly arrived GameActivityMotionEvent.
+     * @return true if the event is from a pointer or joystick device,
+     *         false for all other input devices.
+     */
+    bool motion_event_filter_func(const GameActivityMotionEvent *motionEvent) {
+        auto sourceClass = motionEvent->source & AINPUT_SOURCE_CLASS_MASK;
+        return (
+            sourceClass == AINPUT_SOURCE_CLASS_POINTER ||
+            sourceClass == AINPUT_SOURCE_CLASS_JOYSTICK
+        );
+    }
+
 }  // namespace
 
 
-void on_content_rect_changed(android_app *const state) {
-    if (nullptr == state->userData)
-        return;
-
-    auto &engine = *reinterpret_cast<::CombinedEngine *>(state->userData);
-    const auto width = state->contentRect.right - state->contentRect.left;
-    const auto height = state->contentRect.bottom - state->contentRect.top;
-
-    engine.on_resize(width, height);
-}
-
-
 extern "C" {
-
-void handle_cmd(android_app *pApp, int32_t cmd) {
-    switch (cmd) {
-        case APP_CMD_INIT_WINDOW:
-            spdlog::info("APP_CMD_INIT_WINDOW");
-            if (pApp->userData) {
-                auto engine = reinterpret_cast<::CombinedEngine *>(
-                    pApp->userData
-                );
-                delete engine;
-            }
-            pApp->userData = new ::CombinedEngine(pApp);
-            break;
-        case APP_CMD_CONTENT_RECT_CHANGED:
-            spdlog::info("APP_CMD_CONTENT_RECT_CHANGED");
-            on_content_rect_changed(pApp);
-            break;
-        case APP_CMD_TERM_WINDOW:
-            spdlog::info("APP_CMD_TERM_WINDOW");
-            if (pApp->userData) {
-                auto engine = reinterpret_cast<::CombinedEngine *>(
-                    pApp->userData
-                );
-                delete engine;
-            }
-            pApp->userData = nullptr;
-            break;
-        default:
-            spdlog::info("APP_CMD ({}): unhandled", static_cast<int>(cmd));
-            break;
-    }
-}
-
-/*!
- * Enable the motion events you want to handle; not handled events are
- * passed back to OS for further processing. For this example case,
- * only pointer and joystick devices are enabled.
- *
- * @param motionEvent the newly arrived GameActivityMotionEvent.
- * @return true if the event is from a pointer or joystick device,
- *         false for all other input devices.
- */
-bool motion_event_filter_func(const GameActivityMotionEvent *motionEvent) {
-    auto sourceClass = motionEvent->source & AINPUT_SOURCE_CLASS_MASK;
-    return (
-        sourceClass == AINPUT_SOURCE_CLASS_POINTER ||
-        sourceClass == AINPUT_SOURCE_CLASS_JOYSTICK
-    );
-}
 
 /*!
  * This the main entry point for a native activity
@@ -179,8 +193,7 @@ void android_main(struct android_app *pApp) {
         if (pSource)
             pSource->process(pApp, pSource);
 
-        if (pApp->userData) {
-            auto engine = reinterpret_cast<::CombinedEngine *>(pApp->userData);
+        if (auto engine = get_userdata_as<CombinedEngine>(pApp)) {
             if (!engine->is_ongoing())
                 break;
             engine->do_frame();
