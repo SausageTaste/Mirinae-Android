@@ -8,6 +8,8 @@
 
 namespace mirinapp {
 
-    std::unique_ptr<dal::IFileSubsys> create_filesubsys_android_asset(AAssetManager *mgr);
+    std::unique_ptr<dal::IFileSubsys> create_filesubsys_android_asset(
+        AAssetManager *mgr
+    );
 
 }
