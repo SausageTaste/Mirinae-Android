@@ -20,7 +20,10 @@ You need to set some system environment variables
  
 * `VULKAN_SDK`
   * Install [LunarG Vulkan SDK](https://vulkan.lunarg.com/) and it will set the environment variable for you
- 
+
+Also you need to modify `ANDROID_NDK_HOME/build/cmake/platforms.cmake` file.
+Open it and find a line with `set(NDK_MIN_PLATFORM_LEVEL "21")`, modify the value to `"24"`.
+
 After that, execute `<repo-root>/app/vcpkg_install.bat` script.
 It will install all C++ external libraries via vcpkg.
 It takes some time but you don't need to do it ever again, unless NDK version is changed or `vcpkg.json` file is updated.
