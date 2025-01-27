@@ -229,6 +229,7 @@ namespace {
 
             create_info_.init_width_ = 100;
             create_info_.init_height_ = 100;
+            create_info_.ui_scale_ = 4;
             create_info_.filesys_ = std::make_shared<dal::Filesystem>();
             create_info_.filesys_->add_subsys(
                 mirinapp::create_filesubsys_android_asset(
