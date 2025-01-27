@@ -150,10 +150,15 @@ namespace {
             if (!p.active_) {
                 p.active_ = true;
 
-                auto event = p.make_event();
-                event.index_ = i;
-                event.action_ = mirinae::touch::ActionType::down;
-                engine.on_touch_event(event);
+                auto &io = ImGui::GetIO();
+                io.AddMousePosEvent(p.last_x_, p.last_y_);
+                io.AddMouseButtonEvent(0, true);
+                if (!io.WantCaptureMouse) {
+                    auto event = p.make_event();
+                    event.index_ = i;
+                    event.action_ = mirinae::touch::ActionType::down;
+                    engine.on_touch_event(event);
+                }
             }
         }
 
@@ -168,10 +173,15 @@ namespace {
             if (p.active_) {
                 p.active_ = false;
 
-                auto event = p.make_event();
-                event.action_ = mirinae::touch::ActionType::up;
-                event.index_ = i;
-                engine.on_touch_event(event);
+                auto &io = ImGui::GetIO();
+                io.AddMousePosEvent(p.last_x_, p.last_y_);
+                io.AddMouseButtonEvent(0, false);
+                if (!io.WantCaptureMouse) {
+                    auto event = p.make_event();
+                    event.action_ = mirinae::touch::ActionType::up;
+                    event.index_ = i;
+                    engine.on_touch_event(event);
+                }
             }
         }
 
@@ -186,10 +196,14 @@ namespace {
                 auto &p = pointers_[i];
                 auto &axes = e.pointers[i];
                 if (p.notify_pos(get_axis_x(axes), get_axis_y(axes))) {
-                    auto event = p.make_event();
-                    event.action_ = mirinae::touch::ActionType::move;
-                    event.index_ = i;
-                    engine.on_touch_event(event);
+                    auto &io = ImGui::GetIO();
+                    io.AddMousePosEvent(p.last_x_, p.last_y_);
+                    if (!io.WantCaptureMouse) {
+                        auto event = p.make_event();
+                        event.action_ = mirinae::touch::ActionType::move;
+                        event.index_ = i;
+                        engine.on_touch_event(event);
+                    }
                 }
             }
         }
