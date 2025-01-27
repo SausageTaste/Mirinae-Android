@@ -6,18 +6,25 @@
         "entt",
         "glm",
         "gtest",
-        {
-            "name": "ktx",
-            "features": [
-                "vulkan"
-            ]
-        },
         "lua",
         "nlohmann-json",
         "spdlog",
         "stb",
         "uni-algo",
         "vulkan-memory-allocator",
-        "zlib"
+        "zlib",
+        {
+            "name": "imgui",
+            "features": [
+                "android-binding",
+                "vulkan-binding"
+            ]
+        },
+        {
+            "name": "ktx",
+            "features": [
+                "vulkan"
+            ]
+        }
     ]
 }

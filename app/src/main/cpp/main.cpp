@@ -1,18 +1,18 @@
 #include <mutex>
 
 #include <android/log.h>
+#include <imgui_impl_android.h>
+#include <imgui_impl_vulkan.h>
 #include <jni.h>
-#include <game-activity/GameActivity.cpp>
-#include <game-activity/native_app_glue/android_native_app_glue.c>
-#include <game-text-input/gametextinput.cpp>
-
-#include <mirinae/lightweight/include_spdlog.hpp>
-
 #include <spdlog/sinks/android_sink.h>
 #include <spdlog/sinks/base_sink.h>
 #include <vulkan/vulkan.h>
 #include <fstream>
+#include <game-activity/GameActivity.cpp>
+#include <game-activity/native_app_glue/android_native_app_glue.c>
+#include <game-text-input/gametextinput.cpp>
 #include <mirinae/engine.hpp>
+#include <mirinae/lightweight/include_spdlog.hpp>
 
 #include "filesys.hpp"
 
@@ -40,6 +40,20 @@ namespace {
     T *get_userdata_as(android_app &app) {
         return ::get_userdata_as<T>(&app);
     }
+
+
+    class ImGuiContextRaii {
+
+    public:
+        ImGuiContextRaii() {
+            IMGUI_CHECKVERSION();
+            ImGui::CreateContext();
+            ImGuiIO &io = ImGui::GetIO();
+            (void)io;
+        }
+
+        ~ImGuiContextRaii() { ImGui::DestroyContext(); }
+    } g_imgui_ctxt_raii;
 
 
     class MotionInputManager {
@@ -197,6 +211,8 @@ namespace {
                 spdlog::set_level(spdlog::level::debug);
             }
 
+            ImGui_ImplAndroid_Init(app.window);
+
             create_info_.init_width_ = 100;
             create_info_.init_height_ = 100;
             create_info_.filesys_ = std::make_shared<dal::Filesystem>();
@@ -230,6 +246,9 @@ namespace {
                 );
 
                 return *reinterpret_cast<uint64_t *>(&surface);
+            };
+            create_info_.imgui_new_frame_ = []() {
+                ImGui_ImplAndroid_NewFrame();
             };
 
             engine_ = mirinae::create_engine(std::move(create_info_));
