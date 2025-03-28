@@ -53,7 +53,9 @@ namespace {
         }
 
         ~ImGuiContextRaii() { ImGui::DestroyContext(); }
-    } g_imgui_ctxt_raii;
+    } ;
+
+    ImGuiContextRaii* g_imgui_raii = nullptr;
 
 
     class MotionInputManager {
@@ -216,6 +218,10 @@ namespace {
 
     public:
         explicit CombinedEngine(android_app &app) {
+            if (!g_imgui_raii) {
+                g_imgui_raii = new ImGuiContextRaii();
+            }
+
             // Logger
             if (!g_android_logger) {
                 g_android_logger = spdlog::android_logger_mt(
