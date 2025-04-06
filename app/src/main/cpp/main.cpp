@@ -300,7 +300,16 @@ namespace {
                 motion_inputs_.notify(ib->motionEvents[i], *engine_);
             }
 
+            for (uint64_t i = 0; i < ib->keyEventsCount; ++i) {
+                auto &event = ib->keyEvents[i];
+                int32_t keyCode = event.keyCode;
+                int32_t action = event.action;
+
+                SPDLOG_INFO("Key input: {}, {}", keyCode, action);
+            }
+
             android_app_clear_motion_events(ib);
+            android_app_clear_key_events(ib);
         }
 
     private:
