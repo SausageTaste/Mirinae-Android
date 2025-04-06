@@ -6,7 +6,7 @@
         "entt",
         "glm",
         "gtest",
-        "joltphysics",
+        "enkits",
         "lua",
         "nlohmann-json",
         "spdlog",
@@ -20,6 +20,12 @@
             "features": [
                 "android-binding",
                 "vulkan-binding"
+            ]
+        },
+        {
+            "name": "joltphysics",
+            "features": [
+                "debugrenderer"
             ]
         },
         {
