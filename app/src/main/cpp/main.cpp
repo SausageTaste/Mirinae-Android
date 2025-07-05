@@ -6,6 +6,7 @@
 #include <game-activity/native_app_glue/android_native_app_glue.c>
 #include <game-text-input/gametextinput.cpp>
 
+#include <SDL3/SDL_keycode.h>
 #include <imgui_impl_android.h>
 #include <imgui_impl_vulkan.h>
 #include <jni.h>
@@ -43,6 +44,35 @@ namespace {
     template <typename T>
     T *get_userdata_as(android_app &app) {
         return ::get_userdata_as<T>(&app);
+    }
+
+    int convert_keycode(int input) {
+        if (AKEYCODE_A <= input && input <= AKEYCODE_Z) {
+            return input - AKEYCODE_A + SDL_SCANCODE_A;
+        }
+
+        switch (input) {
+            case AKEYCODE_DPAD_LEFT:
+                return SDL_SCANCODE_LEFT;
+            case AKEYCODE_DPAD_RIGHT:
+                return SDL_SCANCODE_RIGHT;
+            case AKEYCODE_DPAD_UP:
+                return SDL_SCANCODE_UP;
+            case AKEYCODE_DPAD_DOWN:
+                return SDL_SCANCODE_DOWN;
+
+            case AKEYCODE_SPACE:
+                return SDL_SCANCODE_SPACE;
+            case AKEYCODE_SHIFT_LEFT:
+                return SDL_SCANCODE_LSHIFT;
+            case AKEYCODE_CTRL_LEFT:
+                return SDL_SCANCODE_LCTRL;
+
+            default:
+                break;
+        }
+
+        return -1;
     }
 
 
@@ -307,10 +337,22 @@ namespace {
 
             for (uint64_t i = 0; i < ib->keyEventsCount; ++i) {
                 auto &event = ib->keyEvents[i];
-                int32_t keyCode = event.keyCode;
-                int32_t action = event.action;
+                mirinae::key::Event e;
 
-                SPDLOG_INFO("Key input: {}, {}", keyCode, action);
+                switch (event.action) {
+                    case AKEY_EVENT_ACTION_UP:
+                        e.action_type = mirinae::key::ActionType::up;
+                        break;
+                    case AKEY_EVENT_ACTION_DOWN:
+                        e.action_type = mirinae::key::ActionType::down;
+                        break;
+                }
+
+                const auto keycode = ::convert_keycode(event.keyCode);
+                e.scancode_ = keycode;
+                e.keycode_ = keycode;
+
+                engine_->on_key_event(e);
             }
 
             android_app_clear_motion_events(ib);
