@@ -3,10 +3,10 @@
         "aklomp-base64",
         "argparse",
         "brotli",
+        "enkits",
         "entt",
         "glm",
         "gtest",
-        "enkits",
         "lua",
         "nlohmann-json",
         "spdlog",
@@ -30,6 +30,12 @@
         },
         {
             "name": "ktx",
+            "features": [
+                "vulkan"
+            ]
+        },
+        {
+            "name": "sdl3",
             "features": [
                 "vulkan"
             ]

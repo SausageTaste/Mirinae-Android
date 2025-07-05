@@ -35,6 +35,7 @@ add_library(mirinaeandroid SHARED
 
 # Searches for a package provided by the game activity dependency
 find_package(game-activity REQUIRED CONFIG)
+find_package(SDL3 CONFIG REQUIRED)
 
 set(DAL_USE_SUNGTOOLS_SUBMODULE ON CACHE BOOL "")
 set(MIRINAE_USE_DALBARAGI_SUBMODULE ON CACHE BOOL "")
@@ -52,4 +53,5 @@ target_link_libraries(mirinaeandroid
         android
         log
         mirinae::core
+        SDL3::SDL3
 )

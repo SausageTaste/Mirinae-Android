@@ -1,20 +1,24 @@
+#include <fstream>
 #include <mutex>
 
 #include <android/log.h>
+#include <game-activity/GameActivity.cpp>
+#include <game-activity/native_app_glue/android_native_app_glue.c>
+#include <game-text-input/gametextinput.cpp>
+
 #include <imgui_impl_android.h>
 #include <imgui_impl_vulkan.h>
 #include <jni.h>
 #include <spdlog/sinks/android_sink.h>
 #include <spdlog/sinks/base_sink.h>
 #include <vulkan/vulkan.h>
-#include <fstream>
-#include <game-activity/GameActivity.cpp>
-#include <game-activity/native_app_glue/android_native_app_glue.c>
-#include <game-text-input/gametextinput.cpp>
+
 #include <mirinae/engine.hpp>
 #include <mirinae/lightweight/include_spdlog.hpp>
+#include <mirinae/render/platform_func.hpp>
 
 #include "filesys.hpp"
+
 
 #define GET_ENGINE(app)                                     \
     auto p_engine = get_userdata_as<::CombinedEngine>(app); \
@@ -214,10 +218,10 @@ namespace {
     };
 
 
-    class CombinedEngine {
+    class CombinedEngine : public mirinae::VulkanPlatformFunctions {
 
     public:
-        explicit CombinedEngine(android_app &app) {
+        explicit CombinedEngine(android_app &app) : app_(app) {
             if (!g_imgui_raii) {
                 g_imgui_raii = new ImGuiContextRaii();
             }
@@ -245,35 +249,36 @@ namespace {
             create_info_.filesys_->add_subsys(dal::create_filesubsys_std(
                 "", ::std::filesystem::u8path(app.activity->externalDataPath)
             ));
-
             create_info_.instance_extensions_ = std::vector<std::string>{
                 "VK_KHR_surface",
                 "VK_KHR_android_surface",
             };
-            create_info_.surface_creator_ = [&app](void *instance) -> uint64_t {
-                VkAndroidSurfaceCreateInfoKHR create_info{
-                    .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
-                    .pNext = nullptr,
-                    .flags = 0,
-                    .window = app.window,
-                };
-
-                VkSurfaceKHR surface = VK_NULL_HANDLE;
-                const auto create_result = vkCreateAndroidSurfaceKHR(
-                    reinterpret_cast<VkInstance>(instance),
-                    &create_info,
-                    nullptr,
-                    &surface
-                );
-
-                return *reinterpret_cast<uint64_t *>(&surface);
-            };
-            create_info_.imgui_new_frame_ = []() {
-                ImGui_ImplAndroid_NewFrame();
-            };
+            create_info_.vulkan_os_ = this;
+            create_info_.enable_validation_layers_ = true;
 
             engine_ = mirinae::create_engine(std::move(create_info_));
         }
+
+        VkSurfaceKHR create_surface(VkInstance instance) override {
+            VkAndroidSurfaceCreateInfoKHR create_info{
+                .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
+                .pNext = nullptr,
+                .flags = 0,
+                .window = app_.window,
+            };
+
+            VkSurfaceKHR surface = VK_NULL_HANDLE;
+            const auto create_result = vkCreateAndroidSurfaceKHR(
+                reinterpret_cast<VkInstance>(instance),
+                &create_info,
+                nullptr,
+                &surface
+            );
+
+            return surface;
+        }
+
+        void imgui_new_frame() override { ImGui_ImplAndroid_NewFrame(); }
 
         void do_frame() { engine_->do_frame(); }
 
@@ -313,6 +318,7 @@ namespace {
         }
 
     private:
+        android_app& app_;
         mirinae::EngineCreateInfo create_info_;
         std::unique_ptr<mirinae::IEngine> engine_;
         ::MotionInputManager motion_inputs_;
