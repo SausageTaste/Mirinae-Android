@@ -43,7 +43,7 @@ set(MIRINAE_BUILD_APP OFF CACHE BOOL "")
 add_subdirectory(../../../../extern/mirinae ${PROJECT_BINARY_DIR}/libmirinae)
 
 target_compile_definitions(mirinaeandroid PUBLIC VK_USE_PLATFORM_ANDROID_KHR)
-target_compile_features(mirinaeandroid PUBLIC cxx_std_17)
+target_compile_features(mirinaeandroid PUBLIC cxx_std_20)
 
 # Configure libraries CMake uses to link your target library.
 target_link_libraries(mirinaeandroid
@@ -52,6 +52,6 @@ target_link_libraries(mirinaeandroid
 
         android
         log
-        mirinae::core
+        mirinae::engine
         SDL3::SDL3
 )

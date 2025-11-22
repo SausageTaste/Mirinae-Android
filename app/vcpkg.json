@@ -1,19 +1,18 @@
 {
     "dependencies": [
         "aklomp-base64",
-        "argparse",
         "brotli",
         "enkits",
         "entt",
         "glm",
         "gtest",
         "lua",
+        "miniaudio",
         "nlohmann-json",
         "spdlog",
         "stb",
         "uni-algo",
         "vulkan-memory-allocator",
-        "yaml-cpp",
         "zlib",
         {
             "name": "imgui",
