@@ -7,12 +7,14 @@
         "glm",
         "gtest",
         "lua",
+        "meshoptimizer",
         "miniaudio",
         "nlohmann-json",
         "spdlog",
         "stb",
         "uni-algo",
         "vulkan-memory-allocator",
+        "yaml-cpp",
         "zlib",
         {
             "name": "imgui",
@@ -39,5 +41,6 @@
                 "vulkan"
             ]
         }
-    ]
+    ],
+    "builtin-baseline": "67b207f199b5d2ee09f206d2e9e9171e7c7a3274"
 }
